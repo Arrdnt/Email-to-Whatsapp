@@ -5,7 +5,6 @@ import email
 import time
 from dotenv import load_dotenv
 import requests
-from email.header import decode_header
 
 # Load konfigurasi dari .env
 load_dotenv()
@@ -15,7 +14,7 @@ PASSWORD = os.getenv("PASSWORD")
 IMAP_SERVER = os.getenv("IMAP_SERVER")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
-# Load ALLOWED_SENDERS dari .env (dengan format JSON string)
+# Load daftar pengirim yang diizinkan
 try:
     ALLOWED_SENDERS = json.loads(os.getenv("ALLOWED_SENDERS", "[]"))
     if not isinstance(ALLOWED_SENDERS, list):
@@ -26,45 +25,21 @@ except json.JSONDecodeError:
 
 print(f"✅ Allowed Senders: {ALLOWED_SENDERS}")
 
-# Variabel tracking untuk delay looping
-no_email_count = 0   # Hitungan cek tanpa email yang sesuai
-interval = 60        # Interval awal: 1 menit
-
-def decode_mime(encoded_str):
-    try:
-        decoded_parts = decode_header(encoded_str)
-        return ''.join(
-            part.decode(charset or "utf-8", errors="ignore") if isinstance(part, bytes) else part
-            for part, charset in decoded_parts
-        ).strip()
-    except Exception:
-        return encoded_str
-
-def get_email_body(msg):
-    """Mengambil isi email dengan prioritas text/plain, fallback ke text/html."""
-    body = None
-    if msg.is_multipart():
-        for part in msg.walk():
-            content_type = part.get_content_type()
-            content_disp = str(part.get("Content-Disposition"))
-            if content_type == "text/plain" and "attachment" not in content_disp:
-                body = part.get_payload(decode=True).decode(errors="ignore").strip()
-                break
-            elif content_type == "text/html" and body is None:
-                body = part.get_payload(decode=True).decode(errors="ignore").strip()
-    else:
-        body = msg.get_payload(decode=True).decode(errors="ignore").strip()
-    return body or "(Tidak ada isi email)"
+# Variabel tracking
+no_email_count = 0  # Jumlah pengecekan tanpa email
+interval = 60  # Interval awal (1 menit)
 
 def check_email():
     global no_email_count, interval
     try:
+        # Hubungkan ke server email
         mail = imaplib.IMAP4_SSL(IMAP_SERVER)
         mail.login(EMAIL, PASSWORD)
         mail.select("inbox")
 
         allowed_email_ids = []
-        # Cari email UNSEEN untuk setiap allowed sender
+        
+        # Cari email baru dari pengirim yang diizinkan
         for allowed in ALLOWED_SENDERS:
             result, data = mail.search(None, f'(UNSEEN FROM "{allowed}")')
             if result == "OK":
@@ -73,18 +48,21 @@ def check_email():
             else:
                 print(f"⚠️ ERROR: Gagal mencari email dari {allowed}: {result}")
 
-        # Hilangkan duplikasi
+        # Hilangkan duplikasi jika ada
         allowed_email_ids = list(set(allowed_email_ids))
 
         if not allowed_email_ids:
             no_email_count += 1
             print(f"🔍 Tidak ada email baru dari allowed senders. (Cek ke-{no_email_count})")
+
+            # Jika sudah 5 kali berturut-turut tidak ada email, naikkan delay jadi 15 menit
             if no_email_count >= 5:
                 interval = 900  # 15 menit
                 print("⏳ Tidak ada email selama 5x cek, mengubah interval ke 15 menit.")
         else:
-            no_email_count = 0
-            interval = 60  # Reset interval ke 1 menit jika ada email
+            no_email_count = 0  # Reset hitungan
+            interval = 60  # Kembalikan interval ke 1 menit
+
             for num in allowed_email_ids:
                 result, msg_data = mail.fetch(num, "(RFC822)")
                 if result != "OK":
@@ -94,17 +72,20 @@ def check_email():
                 raw_email = msg_data[0][1]
                 msg = email.message_from_bytes(raw_email)
 
-                sender = decode_mime(msg["From"])
-                subject = decode_mime(msg["Subject"])
-                body = get_email_body(msg)
+                sender = msg["From"]
+                subject = msg["Subject"]
 
-                print(f"""
-📩 Email Baru!
-📧 Dari: {sender}
-📌 Subject: {subject}
-✉️ Pesan: {body[:200]}...
-""")
-                # Payload yang dikirim menggunakan key "body"
+                # Ambil isi email
+                body = ""
+                if msg.is_multipart():
+                    for part in msg.walk():
+                        if part.get_content_type() == "text/plain":
+                            body = part.get_payload(decode=True).decode(errors="ignore")
+                            break
+                else:
+                    body = msg.get_payload(decode=True).decode(errors="ignore")
+
+                # Kirim ke webhook untuk diteruskan ke WhatsApp
                 payload = {
                     "sender": sender,
                     "subject": subject,
@@ -113,10 +94,16 @@ def check_email():
                 response = requests.post(WEBHOOK_URL, json=payload)
                 print(f"📩 Email dari {sender} diteruskan ke WA! Status: {response.status_code}")
 
+                # 🚀 Jika email baru masuk selama delay 15 menit, reset interval ke 1 menit
+                if interval == 900:
+                    interval = 60
+                    print("🚀 Email ditemukan! Mengubah interval kembali ke 1 menit.")
+
         mail.logout()
     except Exception as e:
         print(f"⚠️ ERROR: {e}")
 
+# Loop utama
 while True:
     print("\n🔍 Memeriksa email...")
     check_email()
