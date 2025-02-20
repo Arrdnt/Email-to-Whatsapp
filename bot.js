@@ -13,7 +13,7 @@ const client = new Client({
 });
 
 client.on("qr", (qr) => {
-    console.log("Scan QR ini untuk login WhatsApp:");
+    console.log("Scan QR untuk login WhatsApp:");
     qrcode.generate(qr, { small: true });
 });
 
@@ -21,8 +21,9 @@ client.on("ready", () => {
     console.log("✅ WhatsApp bot siap!");
 });
 
+// Webhook endpoint: Node.js akan menerima payload dengan keys: sender, subject, body
 app.post("/send-email", async (req, res) => {
-    const { sender, subject, message } = req.body;
+    const { sender, subject, body } = req.body; // Menggunakan key "body" dari payload
     const chatId = process.env.PHONE_NUMBER + "@c.us";
 
     if (!chatId) {
@@ -30,7 +31,8 @@ app.post("/send-email", async (req, res) => {
     }
 
     try {
-        await client.sendMessage(chatId, `📩 Email Baru!\n📧 Dari: ${sender}\n📌 Subject: ${subject}\n✉️ Pesan: ${message}`);
+        const message = `📩 Email Baru!\n📧 Dari: ${sender}\n📌 Subject: ${subject}\n✉️ Pesan: ${body}`;
+        await client.sendMessage(chatId, message);
         console.log(`✅ Pesan dikirim ke WA: ${message}`);
         res.sendStatus(200);
     } catch (error) {
