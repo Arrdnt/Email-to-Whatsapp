@@ -1,97 +1,180 @@
-# Email Notifier to WhatsApp (via Webhook)
-📌 Deskripsi
+Siap, aku bikin ulang **README.md** versi clean\*\*, bisa langsung dicopy-paste tanpa mention nama apapun.
 
-Script ini berfungsi untuk memeriksa email masuk secara real-time dan meneruskan email dari pengirim yang diizinkan (allowed senders) ke WhatsApp melalui Webhook. Sistem ini menggunakan IMAP untuk membaca email dan memiliki mekanisme delay adaptif agar tetap responsif tanpa membebani server email.
+---
 
-🛠 Fitur
+```markdown
+# 📦 Email → WhatsApp Forwarder + Reminder Bot  
 
-✅ Real-time email monitoring (Email dari allowed senders langsung diteruskan).✅ Delay adaptif (1 menit jika ada email, 15 menit jika tidak ada email selama 5x berturut-turut).✅ Parsing email body (Menghindari encoding aneh seperti ?utf-8?B?).✅ Mengirim pesan ke WhatsApp melalui webhook.✅ Aman dari rate limit karena tidak melakukan polling berlebihan.
+Bot ini menghubungkan **email (IMAP)** dengan **WhatsApp**.  
+Fitur utama:  
+- 🔄 Forward email berdasarkan mapping `sender → target WhatsApp` via `config.json`.  
+- ⏰ Reminder langsung dari WhatsApp, dengan notifikasi sebelum deadline.  
+- ⚙️ Admin commands langsung dari WhatsApp (.help, .addgroup, .addsender, dst).  
+- 📡 Webhook (Python → Node.js) untuk komunikasi antar modul.  
+- 🔒 Konfigurasi sensitif di `.env`.  
 
-🔄 Alur Kerja
+---
 
-Script terhubung ke IMAP server dan login menggunakan kredensial email.
+## 📂 Struktur Project
+```
 
-Script mencari email baru dari daftar allowed senders.
+project-root/
+│── wa-bot.js         # Bot WhatsApp (Node.js)
+│── email-listener.py # Listener IMAP email (Python)
+│── config.json       # Mapping sender → target
+│── reminders.db      # SQLite untuk reminder
+│── .env              # Variabel sensitif (jangan commit!)
+│── README.md         # Dokumentasi
 
-Jika ada email baru:
+````
 
-Mengambil pengirim, subjek, dan isi pesan.
+---
 
-Mengirimkan data ke Webhook WhatsApp.
+## ⚙️ Instalasi
 
-Reset delay ke 1 menit.
+### 1. Clone project
+```bash
+git clone <repo-url>
+cd <project-folder>
+````
 
-Jika tidak ada email baru selama 5x berturut-turut:
+### 2. Install dependencies Node.js
 
-Meningkatkan delay ke 15 menit untuk menghemat resource.
+```bash
+npm install whatsapp-web.js qrcode-terminal express dotenv sqlite3 figlet chalk
+```
 
-Jika saat delay 15 menit ada email masuk:
+### 3. Install dependencies Python
 
-Email langsung dikirim ke WhatsApp.
+```bash
+pip install requests python-dotenv
+```
 
-Delay di-reset kembali ke 1 menit.
+### 4. Buat file `.env`
 
-Proses berulang secara terus-menerus.
+Isi contoh:
 
-🛠 Instalasi dan Konfigurasi
+```env
+# Email IMAP
+IMAP_HOST=imap.example.com
+IMAP_USER=your_email@example.com
+IMAP_PASS=your_password
 
-1️⃣ Clone Repository
+# Webhook (Python → Node.js)
+WEBHOOK_URL=http://localhost:3000/send-email
 
-git clone https://github.com/username/email-notifier.git
-cd email-notifier
+# Interval cek email (detik)
+POLL_INTERVAL=60
+```
 
-2️⃣ Buat Virtual Environment (Opsional, tapi disarankan)
+---
 
-python -m venv venv
-source venv/bin/activate  # Mac/Linux
-venv\Scripts\activate     # Windows
+## 🗂️ Konfigurasi `config.json`
 
-3️⃣ Install Dependensi
+Mapping sender ke target WhatsApp disimpan di file ini.
 
-pip install -r requirements.txt
+Contoh:
 
-4️⃣ Konfigurasi .env
+```json
+{
+  "admins": ["6281234567890@c.us"],
+  "groups": {
+    "akademik": {
+      "senders": [
+        "notifikasi@example.com",
+        "akademik@example.com"
+      ],
+      "target": "6281234567890@c.us"
+    },
+    "umum": {
+      "senders": [
+        "humas@example.com",
+        "info@example.com"
+      ],
+      "target": "6289876543210@c.us"
+    }
+  },
+  "default_target": "6281234567890@c.us"
+}
+```
 
-Buat file .env di direktori utama proyek dan isi dengan informasi berikut:
+* `admins` → hanya nomor ini yang bisa pakai command admin.
+* `groups` → kumpulan email sender + target WA masing-masing.
+* `default_target` → fallback jika sender tidak ada di group manapun.
 
-EMAIL="youremail@gmail.com"
-PASSWORD="yourpassword"
-IMAP_SERVER="imap.gmail.com"
-WEBHOOK_URL="https://your-webhook-url"
-ALLOWED_SENDERS="[\"example1@gmail.com\", \"example2@yahoo.com\"]"
+---
 
-💡 Catatan: Jika menggunakan Gmail, aktifkan IMAP di pengaturan email dan buat App Password jika autentikasi dua faktor aktif.
+## 🚀 Menjalankan Bot
 
-5️⃣ Jalankan Script
+### 1. Jalankan WhatsApp bot
 
-python main.py
+```bash
+node wa-bot.js
+```
 
-📌 Dependensi yang Digunakan
+* Scan QR Code pertama kali.
+* Reminder otomatis load dari `reminders.db`.
 
-Paket
+### 2. Jalankan Email Listener
 
-Deskripsi
+```bash
+python email-listener.py
+```
 
-imaplib
+* Akan cek email tiap `POLL_INTERVAL` detik.
+* Kalau ada email baru dari sender yang match → kirim ke webhook (WhatsApp bot).
 
-Library bawaan Python untuk membaca email via IMAP.
+---
 
-email
+## ⌨️ Command WhatsApp
 
-Library bawaan Python untuk parsing email.
+### User Commands
 
-requests
+```
+.remind <pesan> <dd-mm-yyyy> jam <hh:mm>  → Tambah reminder
+.listremind                              → Lihat semua reminder aktif
+.delremind <id>                          → Hapus reminder
+```
 
-Untuk mengirimkan email ke Webhook WhatsApp.
+### Admin Commands
 
-python-dotenv
+```
+.ping
+.help
+.listgroups
+.listsenders <group>
+.addgroup <groupName> <targetId>
+.delgroup <groupName>
+.addsender <groupName> <email>
+.delsender <groupName> <email>
+.settarget <groupName> <targetId>
+.setdefault <targetId>
+.listconfig
+```
 
-Untuk membaca konfigurasi dari file .env.
+---
 
-time
+## 🛡️ Catatan
 
-Library bawaan Python untuk delay adaptif.
+* Jangan commit `.env` dan `reminders.db`.
+* Kalau pakai penyedia email dengan 2FA → gunakan app password khusus IMAP.
+* `targetId` untuk WhatsApp:
 
-📝 Penutup
+  * Nomor pribadi → `628xxxxxx@c.us`
+  * Grup → `1203630xxxx@g.us`
 
-Script ini dirancang untuk real-time, efisien, dan tidak membebani server email. 🚀 Jika ada saran atau pertanyaan, jangan ragu untuk membuka Issue atau Pull Request di repo ini. 😊 Happy coding! 🎉
+---
+
+## 📌 Roadmap
+
+* [ ] Polling / Voting dari WA
+* [ ] Progress log countdown untuk email listener
+* [ ] Export / import reminder ke JSON
+* [ ] Dashboard web untuk lihat config
+
+```
+
+---
+
+Mau aku bikinin juga **contoh config.json** dan **.env** template terpisah biar lebih rapi (bisa langsung copy-paste)?
+```
