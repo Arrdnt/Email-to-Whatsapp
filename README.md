@@ -153,12 +153,6 @@ python email-listener.py
 
 ---
 
-## 🛡️ Catatan
-
-* Jangan commit `.env` dan `reminders.db`.
-* Kalau pakai penyedia email dengan 2FA → gunakan app password khusus IMAP.
-* `targetId` untuk WhatsApp:
-
   * Nomor pribadi → `628xxxxxx@c.us`
   * Grup → `1203630xxxx@g.us`
 
