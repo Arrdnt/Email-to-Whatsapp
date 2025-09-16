@@ -164,16 +164,4 @@ python email-listener.py
 
 ---
 
-## 📌 Roadmap
-
-* [ ] Polling / Voting dari WA
-* [ ] Progress log countdown untuk email listener
-* [ ] Export / import reminder ke JSON
-* [ ] Dashboard web untuk lihat config
-
-```
-
----
-
-Mau aku bikinin juga **contoh config.json** dan **.env** template terpisah biar lebih rapi (bisa langsung copy-paste)?
-```
+## Thankyou 😥
