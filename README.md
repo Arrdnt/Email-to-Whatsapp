@@ -1,4 +1,3 @@
-Siap, aku bikin ulang **README.md** versi clean\*\*, bisa langsung dicopy-paste tanpa mention nama apapun.
 
 ---
 
