@@ -133,14 +133,22 @@ client.on("disconnected", (reason) => {
 });
 
 // Keep alive presence + uptime
-let startTime = Date.now();
-setInterval(() => {
+const startTime = Date.now();
+function keepAlive() {
+    const min = 15 * 60 * 1000;
+    const max = 20 * 60 * 1000;
+    const randomInterval = Math.floor(Math.random() * (max - min + 1)) + min;
+
     const uptime = Math.floor((Date.now() - startTime) / 1000);
     const mins = Math.floor(uptime / 60);
     const secs = uptime % 60;
+
     console.log(chalk.cyanBright(`💡 Bot hidup | Uptime: ${mins}m ${secs}s | ${new Date().toLocaleTimeString()}`));
     client.sendPresenceAvailable().catch(() => {});
-}, 60 * 1000);
+
+    setTimeout(keepAlive, randomInterval);
+}
+keepAlive();
 
 // ---------------------------
 // DB: reminders (sqlite)
